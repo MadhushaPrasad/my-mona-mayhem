@@ -1,5 +1,4 @@
 ---
-
 ---
 
 <html lang="en">
@@ -8,10 +7,359 @@
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Mona Mayhem</title>
+		<title>Mona Mayhem — GitHub Contribution Battle Arena</title>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+			rel="stylesheet"
+		/>
 	</head>
 	<body>
-		<h1>Mona Mayhem</h1>
-		<p>Welcome to Mona Mayhem! Time to build a GitHub Contribution Battle Arena.</p>
+		<header>
+			<h1>⚔️ Mona Mayhem ⚔️</h1>
+			<p class="subtitle">GitHub Contribution Battle Arena</p>
+		</header>
+
+		<main>
+			<form id="battle-form" autocomplete="off">
+				<div class="players">
+					<div class="player-card">
+						<label for="player1">🟢 Player 1</label>
+						<input
+							type="text"
+							id="player1"
+							name="player1"
+							placeholder="GitHub username"
+							required
+						/>
+					</div>
+
+					<div class="vs">VS</div>
+
+					<div class="player-card">
+						<label for="player2">🔴 Player 2</label>
+						<input
+							type="text"
+							id="player2"
+							name="player2"
+							placeholder="GitHub username"
+							required
+						/>
+					</div>
+				</div>
+
+				<button type="submit" id="battle-btn">⚡ BATTLE! ⚡</button>
+			</form>
+
+			<section id="results" aria-live="polite" hidden>
+				<h2>Results</h2>
+				<div class="results-grid">
+					<div class="result-card" id="result-p1"></div>
+					<div class="winner-banner" id="winner-banner"></div>
+					<div class="result-card" id="result-p2"></div>
+				</div>
+			</section>
+
+			<p id="error-msg" class="error" hidden></p>
+		</main>
+
+		<script>
+			const form = document.getElementById('battle-form') as HTMLFormElement;
+			const resultsSection = document.getElementById('results') as HTMLElement;
+			const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+			const battleBtn = document.getElementById('battle-btn') as HTMLButtonElement;
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				const player1 = (document.getElementById('player1') as HTMLInputElement).value.trim();
+				const player2 = (document.getElementById('player2') as HTMLInputElement).value.trim();
+
+				// Reset UI state
+				resultsSection.hidden = true;
+				errorMsg.hidden = true;
+				battleBtn.disabled = true;
+				battleBtn.textContent = '⏳ Loading…';
+
+				try {
+					const [res1, res2] = await Promise.all([
+						fetch(`/api/contributions/${encodeURIComponent(player1)}`),
+						fetch(`/api/contributions/${encodeURIComponent(player2)}`),
+					]);
+
+					if (!res1.ok && !res2.ok) {
+						throw new Error(`Could not fetch data for "${player1}" or "${player2}". Check both usernames and try again.`);
+					}
+					if (!res1.ok) {
+						throw new Error(`Could not fetch data for Player 1 ("${player1}"). Check the username and try again.`);
+					}
+					if (!res2.ok) {
+						throw new Error(`Could not fetch data for Player 2 ("${player2}"). Check the username and try again.`);
+					}
+
+					const [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+
+					renderResults(player1, data1, player2, data2);
+				} catch (err) {
+					errorMsg.textContent = err instanceof Error ? err.message : 'Something went wrong.';
+					errorMsg.hidden = false;
+				} finally {
+					battleBtn.disabled = false;
+					battleBtn.textContent = '⚡ BATTLE! ⚡';
+				}
+			});
+
+			function makePlayerCard(emoji: string, name: string, total: number): DocumentFragment {
+				const frag = document.createDocumentFragment();
+
+				const nameSpan = document.createElement('span');
+				nameSpan.className = 'player-name';
+				nameSpan.textContent = `${emoji} ${name}`;
+
+				const scoreSpan = document.createElement('span');
+				scoreSpan.className = 'score';
+				scoreSpan.textContent = String(total);
+
+				const labelSpan = document.createElement('span');
+				labelSpan.className = 'label';
+				labelSpan.textContent = 'contributions';
+
+				frag.append(nameSpan, scoreSpan, labelSpan);
+				return frag;
+			}
+
+			function renderResults(
+				name1: string,
+				data1: Record<string, unknown>,
+				name2: string,
+				data2: Record<string, unknown>,
+			) {
+				const p1Card = document.getElementById('result-p1') as HTMLDivElement;
+				const p2Card = document.getElementById('result-p2') as HTMLDivElement;
+				const banner = document.getElementById('winner-banner') as HTMLDivElement;
+
+				const total1 = typeof data1.totalContributions === 'number' ? data1.totalContributions : 0;
+				const total2 = typeof data2.totalContributions === 'number' ? data2.totalContributions : 0;
+
+				p1Card.replaceChildren(makePlayerCard('🟢', name1, total1));
+				p2Card.replaceChildren(makePlayerCard('🔴', name2, total2));
+
+				if (total1 > total2) {
+					banner.textContent = `🏆 ${name1} wins!`;
+					banner.className = 'winner-banner win';
+				} else if (total2 > total1) {
+					banner.textContent = `🏆 ${name2} wins!`;
+					banner.className = 'winner-banner win';
+				} else {
+					banner.textContent = "🤝 It's a draw!";
+					banner.className = 'winner-banner draw';
+				}
+
+				resultsSection.hidden = false;
+			}
+		</script>
+
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+
+			body {
+				font-family: 'Press Start 2P', monospace;
+				background: #0d0d0d;
+				color: #e0e0e0;
+				min-height: 100vh;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				padding: 2rem 1rem;
+				gap: 2rem;
+			}
+
+			header {
+				text-align: center;
+			}
+
+			h1 {
+				font-size: clamp(1rem, 4vw, 1.8rem);
+				color: #f5c518;
+				text-shadow: 3px 3px 0 #a67c00;
+				letter-spacing: 2px;
+			}
+
+			.subtitle {
+				font-size: 0.55rem;
+				color: #aaa;
+				margin-top: 0.6rem;
+				letter-spacing: 1px;
+			}
+
+			main {
+				width: 100%;
+				max-width: 800px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 2rem;
+			}
+
+			#battle-form {
+				width: 100%;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 1.5rem;
+			}
+
+			.players {
+				width: 100%;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.player-card {
+				display: flex;
+				flex-direction: column;
+				gap: 0.6rem;
+				flex: 1;
+				min-width: 180px;
+				max-width: 280px;
+			}
+
+			label {
+				font-size: 0.65rem;
+				color: #f5c518;
+			}
+
+			input[type='text'] {
+				font-family: 'Press Start 2P', monospace;
+				font-size: 0.6rem;
+				background: #1a1a1a;
+				border: 2px solid #444;
+				color: #e0e0e0;
+				padding: 0.6rem 0.8rem;
+				width: 100%;
+				outline: none;
+				transition: border-color 0.2s;
+			}
+
+			input[type='text']:focus {
+				border-color: #f5c518;
+			}
+
+			.vs {
+				font-size: 1.4rem;
+				color: #ff4d4d;
+				text-shadow: 2px 2px 0 #800000;
+				flex-shrink: 0;
+				padding: 0 0.5rem;
+			}
+
+			button[type='submit'] {
+				font-family: 'Press Start 2P', monospace;
+				font-size: 0.75rem;
+				background: #f5c518;
+				color: #0d0d0d;
+				border: none;
+				padding: 0.8rem 2rem;
+				cursor: pointer;
+				letter-spacing: 1px;
+				transition:
+					transform 0.1s,
+					box-shadow 0.1s;
+				box-shadow: 4px 4px 0 #a67c00;
+			}
+
+			button[type='submit']:hover:not(:disabled) {
+				transform: translate(-2px, -2px);
+				box-shadow: 6px 6px 0 #a67c00;
+			}
+
+			button[type='submit']:active:not(:disabled) {
+				transform: translate(2px, 2px);
+				box-shadow: 2px 2px 0 #a67c00;
+			}
+
+			button[type='submit']:disabled {
+				opacity: 0.6;
+				cursor: not-allowed;
+			}
+
+			#results {
+				width: 100%;
+			}
+
+			#results h2 {
+				font-size: 0.8rem;
+				text-align: center;
+				color: #f5c518;
+				margin-bottom: 1.2rem;
+			}
+
+			.results-grid {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.result-card {
+				flex: 1;
+				min-width: 160px;
+				max-width: 240px;
+				background: #1a1a1a;
+				border: 2px solid #333;
+				padding: 1.2rem 1rem;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 0.5rem;
+				text-align: center;
+			}
+
+			.player-name {
+				font-size: 0.55rem;
+				color: #aaa;
+			}
+
+			.score {
+				font-size: 1.6rem;
+				color: #f5c518;
+			}
+
+			.label {
+				font-size: 0.45rem;
+				color: #888;
+			}
+
+			.winner-banner {
+				font-size: 0.7rem;
+				text-align: center;
+				padding: 0.6rem 1rem;
+				flex-shrink: 0;
+			}
+
+			.winner-banner.win {
+				color: #f5c518;
+				text-shadow: 2px 2px 0 #a67c00;
+			}
+
+			.winner-banner.draw {
+				color: #aaa;
+			}
+
+			.error {
+				color: #ff4d4d;
+				font-size: 0.55rem;
+				text-align: center;
+				max-width: 500px;
+			}
+		</style>
 	</body>
 </html>
